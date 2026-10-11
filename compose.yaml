@@ -1,0 +1,54 @@
+services:
+  api:
+    build: .
+    restart: unless-stopped
+    environment:
+      DATA_DIR: /data
+      STUDIO_PASSWORD: ${STUDIO_PASSWORD:?Set STUDIO_PASSWORD in .env}
+      SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET in .env}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-100}
+      MAX_VIDEO_SECONDS: ${MAX_VIDEO_SECONDS:-60}
+    volumes:
+      - jobs:/data
+    ports:
+      - "127.0.0.1:8000:8000"
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.gpu
+    restart: unless-stopped
+    environment:
+      DATA_DIR: /data
+      WHISPER_MODEL: small
+    volumes:
+      - jobs:/data
+      - models:/opt/MuseTalk/models
+      - cache:/cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+  caddy:
+    image: caddy:2.9.1
+    restart: unless-stopped
+    environment:
+      STUDIO_DOMAIN: ${STUDIO_DOMAIN:?Set STUDIO_DOMAIN in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+volumes:
+  jobs:
+  models:
+  cache:
+  caddy_data:
+  caddy_config:
